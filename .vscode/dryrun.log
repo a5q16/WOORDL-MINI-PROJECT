@@ -1,0 +1,10 @@
+make.exe --dry-run --always-make --keep-going --print-directory
+make: Entering directory 'c:/Users/pc gamer/.gemini/antigravity/scratch/wordle_project'
+mkdir -p obj
+gcc -Wall -Wextra -std=c99 -g -c src/game.c -o obj/game.o
+gcc -Wall -Wextra -std=c99 -g -c src/main.c -o obj/main.o
+gcc -Wall -Wextra -std=c99 -g -c src/solver.c -o obj/solver.o
+gcc -Wall -Wextra -std=c99 -g -c src/utils.c -o obj/utils.o
+gcc -Wall -Wextra -std=c99 -g -o wordle obj/game.o obj/main.o obj/solver.o obj/utils.o
+make: Leaving directory 'c:/Users/pc gamer/.gemini/antigravity/scratch/wordle_project'
+ 
