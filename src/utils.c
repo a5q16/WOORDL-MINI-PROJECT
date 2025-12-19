@@ -5,6 +5,24 @@
 #include <time.h>
 #include "utils.h"
 
+// Comparison function for qsort and bsearch
+int compare_words(const void *a, const void *b) {
+    return strcmp(*(const char **)a, *(const char **)b);
+}
+
+/**
+ * @brief Loads the dictionary from a file.
+ * 
+ * Memory Management:
+ * Allocates memory for the dictionary structure and the array of strings.
+ * The caller is responsible for freeing this memory using free_dictionary().
+ * 
+ * Optimization:
+ * Sorts the word list after loading to enable O(log n) binary search lookups.
+ * 
+ * @param filename Path to the dictionary text file.
+ * @return Dictionary* Pointer to the loaded dictionary, or NULL on failure.
+ */
 Dictionary* load_dictionary(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -23,6 +41,7 @@ Dictionary* load_dictionary(const char *filename) {
         buffer[strcspn(buffer, "\n")] = 0;
         buffer[strcspn(buffer, "\r")] = 0;
 
+        // Validation: Must be exact length
         if (strlen(buffer) == WORD_LENGTH) {
             if (dict->count >= dict->capacity) {
                 dict->capacity *= 2;
@@ -35,6 +54,10 @@ Dictionary* load_dictionary(const char *filename) {
     }
 
     fclose(file);
+
+    // Sort the dictionary to enable binary search
+    qsort(dict->words, dict->count, sizeof(char*), compare_words);
+
     return dict;
 }
 
@@ -50,13 +73,11 @@ void free_dictionary(Dictionary *dict) {
 bool is_valid_guess(const char *guess, const Dictionary *dict) {
     if (strlen(guess) != WORD_LENGTH) return false;
     
-    // Simple linear search (could be optimized with hash table or binary search if sorted)
-    for (int i = 0; i < dict->count; i++) {
-        if (strcmp(guess, dict->words[i]) == 0) {
-            return true;
-        }
-    }
-    return false;
+    // Binary search for O(log N) efficiency
+    char *key = (char*)guess;
+    void *result = bsearch(&key, dict->words, dict->count, sizeof(char*), compare_words);
+    
+    return (result != NULL);
 }
 
 char* get_random_word(const Dictionary *dict) {

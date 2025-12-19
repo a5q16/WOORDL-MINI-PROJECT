@@ -1,25 +1,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include "game.h"
 
 // ANSI Color Codes
-#define COLOR_GREEN "\033[32m"
-#define COLOR_YELLOW "\033[33m"
-#define COLOR_GRAY "\033[90m"
 #define COLOR_RESET "\033[0m"
+#define BG_GREEN    "\033[42;30m" // Green Background, Black Text
+#define BG_YELLOW   "\033[43;30m" // Yellow Background, Black Text
+#define BG_GRAY     "\033[100;37m" // Dark Gray Background, White Text
+#define BG_DEFAULT  "\033[40;37m" // Black Background, White Text
+#define TERM_CLEAR  "\033[2J\033[H"
 
+/**
+ * @brief Generates feedback for a guess against a target word.
+ * 
+ * @param target The secret target word.
+ * @param guess The player's guess.
+ * @param feedback Output array to store the feedback (Green/Yellow/Gray).
+ */
 void get_feedback(const char *target, const char *guess, FeedbackType *feedback) {
     int target_counts[26] = {0};
-    int guess_matched[WORD_LENGTH] = {0}; // 1 if this index in guess is already matched (Green)
-    int target_matched[WORD_LENGTH] = {0}; // 1 if this index in target is already matched (Green)
+    int guess_matched[WORD_LENGTH] = {0}; 
+    int target_matched[WORD_LENGTH] = {0}; 
 
-    // Initialize feedback to Gray
-    for (int i = 0; i < WORD_LENGTH; i++) {
-        feedback[i] = FEEDBACK_GRAY;
-    }
+    // Initialize feedback
+    for (int i = 0; i < WORD_LENGTH; i++) feedback[i] = FEEDBACK_GRAY;
 
-    // 1. Check for Green (Correct position)
+    // 1. Check for Green
     for (int i = 0; i < WORD_LENGTH; i++) {
         if (guess[i] == target[i]) {
             feedback[i] = FEEDBACK_GREEN;
@@ -28,16 +36,16 @@ void get_feedback(const char *target, const char *guess, FeedbackType *feedback)
         }
     }
 
-    // Count remaining available letters in target
+    // Count remaining target letters
     for (int i = 0; i < WORD_LENGTH; i++) {
         if (!target_matched[i]) {
             target_counts[target[i] - 'a']++;
         }
     }
 
-    // 2. Check for Yellow (Wrong position)
+    // 2. Check for Yellow
     for (int i = 0; i < WORD_LENGTH; i++) {
-        if (guess_matched[i]) continue; // Already Green
+        if (guess_matched[i]) continue; 
 
         int char_idx = guess[i] - 'a';
         if (target_counts[char_idx] > 0) {
@@ -48,58 +56,114 @@ void get_feedback(const char *target, const char *guess, FeedbackType *feedback)
 }
 
 void print_feedback(const char *guess, const FeedbackType *feedback) {
+    // Legacy function support if needed, but we mostly use render_board now.
+    // We can keep it simple or redirect to a single-line render.
     for (int i = 0; i < WORD_LENGTH; i++) {
-        if (feedback[i] == FEEDBACK_GREEN) {
-            printf("%s%c%s", COLOR_GREEN, guess[i], COLOR_RESET);
-        } else if (feedback[i] == FEEDBACK_YELLOW) {
-            printf("%s%c%s", COLOR_YELLOW, guess[i], COLOR_RESET);
-        } else {
-            printf("%s%c%s", COLOR_GRAY, guess[i], COLOR_RESET);
-        }
+        if (feedback[i] == FEEDBACK_GREEN) printf("%s %c %s", BG_GREEN, toupper(guess[i]), COLOR_RESET);
+        else if (feedback[i] == FEEDBACK_YELLOW) printf("%s %c %s", BG_YELLOW, toupper(guess[i]), COLOR_RESET);
+        else printf("%s %c %s", BG_GRAY, toupper(guess[i]), COLOR_RESET);
+        printf(" ");
     }
     printf("\n");
 }
 
+void render_board(char guesses[6][WORD_LENGTH + 1], FeedbackType feedbacks[6][WORD_LENGTH], int current_attempt, const char *message) {
+    printf("%s", TERM_CLEAR);
+    printf("W O R D L E\n");
+    printf("-----------\n\n");
+
+    for (int i = 0; i < 6; i++) {
+        if (i < current_attempt) {
+            // Render guessed row
+            for (int j = 0; j < WORD_LENGTH; j++) {
+                char letter = toupper(guesses[i][j]);
+                if (feedbacks[i][j] == FEEDBACK_GREEN) {
+                    printf("%s %c %s ", BG_GREEN, letter, COLOR_RESET);
+                } else if (feedbacks[i][j] == FEEDBACK_YELLOW) {
+                    printf("%s %c %s ", BG_YELLOW, letter, COLOR_RESET);
+                } else {
+                    printf("%s %c %s ", BG_GRAY, letter, COLOR_RESET);
+                }
+            }
+        } else {
+            // Render empty row
+            for (int j = 0; j < WORD_LENGTH; j++) {
+                printf("[ ] "); 
+            }
+        }
+        printf("\n\n");
+    }
+
+    if (message && strlen(message) > 0) {
+        printf("> %s\n", message);
+    }
+}
+
 void play_game(const char *target_word, const Dictionary *dict) {
-    char guess[64];
-    FeedbackType feedback[WORD_LENGTH];
-    int attempts = 0;
-    const int MAX_ATTEMPTS = 6;
+    char guesses[6][WORD_LENGTH + 1];
+    FeedbackType feedbacks[6][WORD_LENGTH];
+    int attempt = 0;
     int won = 0;
+    char message[128] = "Enter a 5-letter word:";
 
-    printf("Welcome to Wordle! Guess the 5-letter word.\n");
+    // Initialize memory
+    memset(guesses, 0, sizeof(guesses));
+    memset(feedbacks, 0, sizeof(feedbacks));
 
-    while (attempts < MAX_ATTEMPTS) {
-        printf("Attempt %d/%d: ", attempts + 1, MAX_ATTEMPTS);
-        if (scanf("%63s", guess) != 1) break;
+    while (attempt < 6) {
+        render_board(guesses, feedbacks, attempt, message);
+
+        char input[64];
+        if (!fgets(input, sizeof(input), stdin)) break;
+
+        // Clean input
+        input[strcspn(input, "\n")] = 0;
+        input[strcspn(input, "\r")] = 0;
         
-        to_lowercase(guess);
+        // Command to quit
+        if (strcmp(input, ":q") == 0) {
+            printf("Quitting game.\n");
+            return;
+        }
 
-        if (!is_valid_guess(guess, dict)) {
-            printf("Invalid word. Try again.\n");
+        if (strlen(input) != WORD_LENGTH) {
+            snprintf(message, sizeof(message), "Invalid length! Must be 5 letters.");
             continue;
         }
 
-        get_feedback(target_word, guess, feedback);
-        print_feedback(guess, feedback);
-
-        // Check win condition
-        int green_count = 0;
-        for (int i = 0; i < WORD_LENGTH; i++) {
-            if (feedback[i] == FEEDBACK_GREEN) green_count++;
+        to_lowercase(input);
+        
+        // Validate word
+        bool in_dict = is_valid_guess(input, dict);
+        if (!in_dict) {
+            snprintf(message, sizeof(message), "'%s' is not in the word list.", input);
+            continue;
         }
 
-        if (green_count == WORD_LENGTH) {
+        // Process Valid Guess
+        strcpy(guesses[attempt], input);
+        get_feedback(target_word, guesses[attempt], feedbacks[attempt]);
+        
+        // Check Win
+        int greens = 0;
+        for(int k=0; k<WORD_LENGTH; k++) 
+            if(feedbacks[attempt][k] == FEEDBACK_GREEN) greens++;
+        
+        if (greens == WORD_LENGTH) {
             won = 1;
-            break;
+            attempt++;
+            break; 
         }
 
-        attempts++;
+        attempt++;
+        snprintf(message, sizeof(message), "Enter guess %d/6:", attempt + 1);
     }
 
+    render_board(guesses, feedbacks, attempt, "");
+    
     if (won) {
-        printf("Congratulations! You guessed the word '%s' in %d attempts.\n", target_word, attempts + 1);
+        printf("\n\033[1;32mImpressive! You guessed '%s' in %d attempts.\033[0m\n", target_word, attempt);
     } else {
-        printf("Game Over. The word was '%s'.\n", target_word);
+        printf("\n\033[1;31mGame Over! The word was '%s'.\033[0m\n", target_word);
     }
 }

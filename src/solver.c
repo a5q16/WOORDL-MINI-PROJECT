@@ -3,7 +3,14 @@
 #include <string.h>
 #include "solver.h"
 
-// Helper to check if a word matches the feedback given a guess
+/**
+ * @brief Checks if a dictionary word is consistent with the feedback received.
+ * 
+ * @param word The candidate word from the dictionary.
+ * @param guess The guess that generated the feedback.
+ * @param feedback The feedback received for the guess.
+ * @return true if the word could be the target, false otherwise.
+ */
 bool is_consistent(const char *word, const char *guess, const FeedbackType *feedback) {
     FeedbackType temp_feedback[WORD_LENGTH];
     get_feedback(word, guess, temp_feedback);
@@ -14,7 +21,13 @@ bool is_consistent(const char *word, const char *guess, const FeedbackType *feed
     return true;
 }
 
-// Calculate score for a word based on letter frequency in candidates
+/**
+ * @brief Calculates a heuristic score for a word based on letter frequency.
+ * 
+ * @param word The word to score.
+ * @param letter_counts Array of letter frequencies in the current candidate set.
+ * @return int The calculated score.
+ */
 int calculate_score(const char *word, int *letter_counts) {
     int score = 0;
     bool seen[26] = {false};
@@ -28,13 +41,26 @@ int calculate_score(const char *word, int *letter_counts) {
     return score;
 }
 
+/**
+ * @brief Selects the best next guess from the dictionary.
+ * 
+ * Strategy:
+ * 1. Count letter frequencies across all remaining valid candidates.
+ * 2. Score each candidate based on how many high-frequency letters it contains.
+ * 3. Choose the word with the highest score to maximize information gain.
+ * 
+ * @param dict The full dictionary.
+ * @param candidates Array of indices of valid candidates in the dictionary.
+ * @param candidate_count Number of valid candidates.
+ * @return char* The selected guess (must be freed by caller).
+ */
 char* choose_best_guess(const Dictionary *dict, int *candidates, int candidate_count) {
-    // If only 1 candidate, return it
+    // Optimization: If only one candidate remains, that must be the answer.
     if (candidate_count == 1) {
         return strdup(dict->words[candidates[0]]);
     }
 
-    // Calculate letter frequencies in remaining candidates
+    // Step 1: Calculate letter frequencies
     int letter_counts[26] = {0};
     for (int i = 0; i < candidate_count; i++) {
         const char *w = dict->words[candidates[i]];
@@ -48,15 +74,8 @@ char* choose_best_guess(const Dictionary *dict, int *candidates, int candidate_c
         }
     }
 
-    // Find word with highest score
-    // We can search the entire dictionary for the best guess (Minimax style), 
-    // or just the candidates. Searching candidates is faster and usually sufficient.
-    // For better performance, searching the whole dictionary is often better to eliminate more,
-    // but let's stick to candidates for simplicity and speed first.
-    // Actually, for the very first guess, we should pick a known good word or calculate it.
-    // Let's search ALL valid words for the best guess, but prioritize candidates if scores are close?
-    // No, let's just search candidates for now.
-    
+    // Step 2: Find the word with the highest score
+    // Current Strategy: Greedy selection from candidates.
     int best_score = -1;
     int best_index = -1;
 
@@ -73,7 +92,8 @@ char* choose_best_guess(const Dictionary *dict, int *candidates, int candidate_c
 }
 
 void solve_game(const char *target_word, const Dictionary *dict) {
-    printf("Solver started for target: %s\n", target_word);
+    printf("\n=== WORDLE SOLVER ===\n");
+    printf("Target: %s\n\n", target_word);
 
     int *candidates = malloc(dict->count * sizeof(int));
     int candidate_count = dict->count;
@@ -86,9 +106,9 @@ void solve_game(const char *target_word, const Dictionary *dict) {
     while (attempts < 10) { // Safety limit
         attempts++;
         
-        // First guess optimization
+        // Strategy: Start with a strong opener like "trace" or "crate"
         if (attempts == 1) {
-            guess = strdup("trace"); // A standard good starting word
+            guess = strdup("trace"); 
             if (!is_valid_guess(guess, dict)) {
                 free(guess);
                 guess = choose_best_guess(dict, candidates, candidate_count);
@@ -100,13 +120,13 @@ void solve_game(const char *target_word, const Dictionary *dict) {
         printf("Guess %d: %s\n", attempts, guess);
 
         if (strcmp(guess, target_word) == 0) {
-            printf("Solver found the word in %d attempts!\n", attempts);
+            printf("\n\033[1;32mSolved in %d attempts!\033[0m\n", attempts);
             free(guess);
             break;
         }
 
         get_feedback(target_word, guess, feedback);
-        print_feedback(guess, feedback);
+        print_feedback(guess, feedback); // Uses shared game.c function for colored output
 
         // Filter candidates
         int new_count = 0;
@@ -116,7 +136,7 @@ void solve_game(const char *target_word, const Dictionary *dict) {
             }
         }
         candidate_count = new_count;
-        printf("Remaining candidates: %d\n", candidate_count);
+        printf("Possible words left: %d\n", candidate_count);
 
         free(guess);
         
@@ -124,6 +144,7 @@ void solve_game(const char *target_word, const Dictionary *dict) {
             printf("Error: No candidates left. Dictionary might be missing the target word.\n");
             break;
         }
+        printf("---------------------\n");
     }
 
     free(candidates);
