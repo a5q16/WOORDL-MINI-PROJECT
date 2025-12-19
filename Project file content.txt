@@ -1,0 +1,16 @@
+
+Makefile
+Readme.md
+words.txt
+
+
+Report  
+.vscode
+
+game.c
+game.h
+main.c
+solver.c
+solver.h
+utils.c
+utils.h
